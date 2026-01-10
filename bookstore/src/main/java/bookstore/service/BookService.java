@@ -3,7 +3,7 @@ package service;
 import java.sql.*;
 import java.util.*;
 
-public class OrderService {
+public class BookService {
 
     private static final String URL =
             "jdbc:mysql://localhost:3306/bookstore?useSSL=false&serverTimezone=UTC";
@@ -12,50 +12,138 @@ public class OrderService {
 
 
     // =====================
-    // Créer une commande pour un client
+    // Récupérer tous les livres
     // =====================
-    public static Map<String, Object> createOrder(Map<String, Object> customer) {
-        Map<String, Object> order = new HashMap<>();
-        order.put("customer", customer);
-        order.put("items", new ArrayList<Map<String, Object>>());
-        order.put("total", 0.0);
-        order.put("confirmed", false);
-        return order;
+    public static List<Map<String, Object>> getAllBooks() {
+        List<Map<String, Object>> books = new ArrayList<>();
+        String sql = "SELECT * FROM books";
+
+        try (Connection cn = DriverManager.getConnection(URL, USER, PASSWORD);
+             Statement st = cn.createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+
+            while (rs.next()) {
+                Map<String, Object> book = new HashMap<>();
+                book.put("isbn", rs.getString("isbn"));
+                book.put("title", rs.getString("title"));
+                book.put("author", rs.getString("author"));
+                book.put("price", rs.getDouble("price"));
+                book.put("stock", rs.getInt("stock"));
+                books.add(book);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return books;
     }
 
     // =====================
-    // Ajouter un livre à la commande
+    // Récupérer les livres disponibles (stock > 0)
     // =====================
-    @SuppressWarnings("unchecked")
-    public static boolean addBookToOrder(Map<String, Object> order, String isbn, int quantity) {
-        try (Connection cn = DriverManager.getConnection(URL, USER, PASSWORD)) {
+    public static List<Map<String, Object>> getAvailableBooks() {
+        List<Map<String, Object>> books = new ArrayList<>();
+        String sql = "SELECT * FROM books WHERE stock > 0";
 
-            // Vérifier si le livre existe et stock disponible
-            String sql = "SELECT * FROM books WHERE isbn = ?";
-            PreparedStatement ps = cn.prepareStatement(sql);
-            ps.setString(1, isbn);
+        try (Connection cn = DriverManager.getConnection(URL, USER, PASSWORD);
+             Statement st = cn.createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+
+            while (rs.next()) {
+                Map<String, Object> book = new HashMap<>();
+                book.put("isbn", rs.getString("isbn"));
+                book.put("title", rs.getString("title"));
+                book.put("author", rs.getString("author"));
+                book.put("price", rs.getDouble("price"));
+                book.put("stock", rs.getInt("stock"));
+                books.add(book);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return books;
+    }
+
+    // =====================
+    // Récupérer les livres par auteur
+    // =====================
+    public static List<Map<String, Object>> getBooksByAuthor(String author) {
+        List<Map<String, Object>> books = new ArrayList<>();
+        String sql = "SELECT * FROM books WHERE author = ?";
+
+        try (Connection cn = DriverManager.getConnection(URL, USER, PASSWORD);
+             PreparedStatement ps = cn.prepareStatement(sql)) {
+
+            ps.setString(1, author);
             ResultSet rs = ps.executeQuery();
 
-            if (!rs.next()) {
-                System.out.println("Livre introuvable pour ISBN : " + isbn);
-                return false;
+            while (rs.next()) {
+                Map<String, Object> book = new HashMap<>();
+                book.put("isbn", rs.getString("isbn"));
+                book.put("title", rs.getString("title"));
+                book.put("author", rs.getString("author"));
+                book.put("price", rs.getDouble("price"));
+                book.put("stock", rs.getInt("stock"));
+                books.add(book);
             }
 
-            int stock = rs.getInt("stock");
-            if (stock < quantity) {
-                System.out.println("Stock insuffisant pour ISBN : " + isbn);
-                return false;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return books;
+    }
+
+    // =====================
+    // Récupérer les livres par prix
+    // =====================
+    public static List<Map<String, Object>> getBooksByPriceRange(double min, double max) {
+        List<Map<String, Object>> books = new ArrayList<>();
+        String sql = "SELECT * FROM books WHERE price BETWEEN ? AND ?";
+
+        try (Connection cn = DriverManager.getConnection(URL, USER, PASSWORD);
+             PreparedStatement ps = cn.prepareStatement(sql)) {
+
+            ps.setDouble(1, min);
+            ps.setDouble(2, max);
+            ResultSet rs = ps.executeQuery();
+
+            while (rs.next()) {
+                Map<String, Object> book = new HashMap<>();
+                book.put("isbn", rs.getString("isbn"));
+                book.put("title", rs.getString("title"));
+                book.put("author", rs.getString("author"));
+                book.put("price", rs.getDouble("price"));
+                book.put("stock", rs.getInt("stock"));
+                books.add(book);
             }
 
-            Map<String, Object> item = new HashMap<>();
-            item.put("isbn", isbn);
-            item.put("title", rs.getString("title"));
-            item.put("quantity", quantity);
-            item.put("price", rs.getDouble("price"));
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
 
-            ((List<Map<String, Object>>) order.get("items")).add(item);
+        return books;
+    }
 
-            return true;
+    // =====================
+    // Ajouter un nouveau livre
+    // =====================
+    public static boolean addBook(Map<String, Object> book) {
+        String sql = "INSERT INTO books (isbn, title, author, price, stock) VALUES (?, ?, ?, ?, ?)";
+
+        try (Connection cn = DriverManager.getConnection(URL, USER, PASSWORD);
+             PreparedStatement ps = cn.prepareStatement(sql)) {
+
+            ps.setString(1, (String) book.get("isbn"));
+            ps.setString(2, (String) book.get("title"));
+            ps.setString(3, (String) book.get("author"));
+            ps.setDouble(4, (Double) book.get("price"));
+            ps.setInt(5, (Integer) book.get("stock"));
+
+            return ps.executeUpdate() > 0;
 
         } catch (SQLException e) {
             e.printStackTrace();
@@ -65,114 +153,85 @@ public class OrderService {
     }
 
     // =====================
-    // Valider la commande (au moins un livre doit être présent)
+    // Mettre à jour le stock d’un livre
     // =====================
-    @SuppressWarnings("unchecked")
-    public static boolean validateOrder(Map<String, Object> order) {
-        List<Map<String, Object>> items = (List<Map<String, Object>>) order.get("items");
-        if (items.isEmpty()) {
-            System.out.println("Commande invalide : aucun livre ajouté");
-            return false;
+    public static boolean updateStock(String isbn, int quantity) {
+        String sql = "UPDATE books SET stock = ? WHERE isbn = ?";
+
+        try (Connection cn = DriverManager.getConnection(URL, USER, PASSWORD);
+             PreparedStatement ps = cn.prepareStatement(sql)) {
+
+            ps.setInt(1, quantity);
+            ps.setString(2, isbn);
+            return ps.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
-        return true;
+
+        return false;
     }
 
     // =====================
-    // Calculer le total de la commande
+    // Supprimer un livre
     // =====================
-    @SuppressWarnings("unchecked")
-    public static double calculateOrderTotal(Map<String, Object> order) {
-        double total = 0;
-        List<Map<String, Object>> items = (List<Map<String, Object>>) order.get("items");
-        for (Map<String, Object> item : items) {
-            total += (double) item.get("price") * (int) item.get("quantity");
+    public static boolean removeBook(String isbn) {
+        String sql = "DELETE FROM books WHERE isbn = ?";
+
+        try (Connection cn = DriverManager.getConnection(URL, USER, PASSWORD);
+             PreparedStatement ps = cn.prepareStatement(sql)) {
+
+            ps.setString(1, isbn);
+            return ps.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
-        order.put("total", total);
+
+        return false;
+    }
+
+    // =====================
+    // Calculer la valeur totale du stock
+    // =====================
+    public static double getTotalStockValue() {
+        double total = 0;
+        String sql = "SELECT SUM(price * stock) AS totalValue FROM books";
+
+        try (Connection cn = DriverManager.getConnection(URL, USER, PASSWORD);
+             Statement st = cn.createStatement();
+             ResultSet rs = st.executeQuery(sql)) {
+
+            if (rs.next()) {
+                total = rs.getDouble("totalValue");
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
         return total;
     }
 
     // =====================
-    // Confirmer la commande et mettre à jour le stock
+    // Affichage concurrent
     // =====================
-    @SuppressWarnings("unchecked")
-    public static boolean confirmOrder(Map<String, Object> order) {
-        List<Map<String, Object>> items = (List<Map<String, Object>>) order.get("items");
+    public static void showBooksConcurrently() {
+        Runnable task = () -> {
+            List<Map<String, Object>> books = getAllBooks();
+            System.out.println("Utilisateur : " + Thread.currentThread().getName());
 
-        try (Connection cn = DriverManager.getConnection(URL, USER, PASSWORD)) {
-            cn.setAutoCommit(false); // transaction
+            books.forEach(b ->
+                    System.out.println(
+                            b.get("title") + " | Prix: " + b.get("price") + " | Stock: " + b.get("stock")
+                    )
+            );
 
-            for (Map<String, Object> item : items) {
-                String sql = "UPDATE books SET stock = stock - ? WHERE isbn = ? AND stock >= ?";
-                PreparedStatement ps = cn.prepareStatement(sql);
-                int quantity = (int) item.get("quantity");
-                ps.setInt(1, quantity);
-                ps.setString(2, (String) item.get("isbn"));
-                ps.setInt(3, quantity);
+            System.out.println("------------------------");
+        };
 
-                int updated = ps.executeUpdate();
-                if (updated == 0) {
-                    cn.rollback();
-                    System.out.println("Échec de la commande : stock insuffisant pour " + item.get("isbn"));
-                    return false;
-                }
-            }
-
-            cn.commit();
-            order.put("confirmed", true);
-            System.out.println("Commande confirmée !");
-            return true;
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-        return false;
-    }
-
-    // =====================
-    // Achat rapide (méthode existante)
-    // =====================
-    public static synchronized boolean buyBook(String isbn, int quantity) {
-        try (Connection cn = DriverManager.getConnection(URL, USER, PASSWORD)) {
-
-            String check = "SELECT stock FROM books WHERE isbn = ?";
-            PreparedStatement psCheck = cn.prepareStatement(check);
-            psCheck.setString(1, isbn);
-            ResultSet rs = psCheck.executeQuery();
-
-            if (!rs.next()) return false;
-
-            int stock = rs.getInt("stock");
-
-            if (stock < quantity) {
-                System.out.println(Thread.currentThread().getName() + " → Stock insuffisant");
-                return false;
-            }
-
-            String update = "UPDATE books SET stock = stock - ? WHERE isbn = ?";
-            PreparedStatement psUpdate = cn.prepareStatement(update);
-            psUpdate.setInt(1, quantity);
-            psUpdate.setString(2, isbn);
-            psUpdate.executeUpdate();
-
-            System.out.println(Thread.currentThread().getName() + " → Achat réussi");
-            return true;
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-        return false;
-    }
-
-    // =====================
-    // Simulation de plusieurs clients
-    // =====================
-    public static void simulateConcurrentPurchases() {
-        Runnable task = () -> buyBook("123456", 2);
-
-        for (int i = 1; i <= 5; i++) {
-            new Thread(task, "Client-" + i).start();
+        for (int i = 1; i <= 3; i++) {
+            new Thread(task, "User-" + i).start();
         }
     }
 }
