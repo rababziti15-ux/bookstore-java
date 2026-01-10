@@ -4,36 +4,70 @@ import bookstore.model.Book;
 import bookstore.thread.PurchaseTask;
 import bookstore.thread.StockManager;
 import bookstore.thread.StockManagerDBImpl;
+import service.BookService;
+import service.OrderService;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-public class Main {
+public class MainCombined {
     public static void main(String[] args) {
 
-        // 1️⃣ Création de l'implémentation du StockManager
+        // ==========================
+        // 1️⃣ Partie BookService / OrderService
+        // ==========================
+        System.out.println("===== Liste des livres =====");
+        List<Map<String, Object>> books = BookService.getAllBooks();
+        for (Map<String, Object> book : books) {
+            System.out.println(
+                    "ISBN: " + book.get("isbn") +
+                    " | Titre: " + book.get("title") +
+                    " | Auteur: " + book.get("author") +
+                    " | Prix: " + book.get("price") +
+                    " | Stock: " + book.get("stock")
+            );
+        }
+
+        // Créer un client et une commande
+        Map<String, Object> customer = new HashMap<>();
+        customer.put("name", "Nouhaila");
+        customer.put("email", "nouhaila@example.com");
+        Map<String, Object> order = OrderService.createOrder(customer);
+
+        // Ajouter des livres à la commande
+        System.out.println("\n===== Ajout des livres à la commande =====");
+        OrderService.addBookToOrder(order, "123456", 2);
+        OrderService.addBookToOrder(order, "654321", 1);
+
+        // Valider et confirmer la commande
+        if (OrderService.validateOrder(order)) {
+            double total = OrderService.calculateOrderTotal(order);
+            System.out.println("Total de la commande : " + total + " €");
+            boolean confirmed = OrderService.confirmOrder(order);
+            System.out.println(confirmed ? "Commande confirmée !" : "Échec de la confirmation");
+        } else {
+            System.out.println("Commande invalide !");
+        }
+
+        // ==========================
+        // 2️⃣ Partie StockManager / threads
+        // ==========================
         StockManager stockManager = new StockManagerDBImpl();
+        Book threadedBook = new Book("123456", "Java Programming", "Author A", 50, 0);
 
-        // 2️⃣ On crée l'objet Book avec le bon ISBN (le stock réel est dans la DB)
-        Book book = new Book("123456", "Java Programming", "Author A", 50, 0);
+        System.out.println("Stock avant threads : " + getStock(threadedBook.getIsbn()));
 
-        // 3️⃣ Afficher le stock avant les achats
-        System.out.println("Stock initial : " + getStock(book.getIsbn()));
+        Thread t1 = new Thread(new PurchaseTask(stockManager, threadedBook, 3, "Alice"));
+        Thread t2 = new Thread(new PurchaseTask(stockManager, threadedBook, 4, "Bob"));
+        Thread t3 = new Thread(new PurchaseTask(stockManager, threadedBook, 5, "Charlie"));
+        Thread t4 = new Thread(new PurchaseTask(stockManager, threadedBook, 2, "Diana"));
 
-        // 4️⃣ Création des threads clients
-        Thread t1 = new Thread(new PurchaseTask(stockManager, book, 3, "Alice"));
-        Thread t2 = new Thread(new PurchaseTask(stockManager, book, 4, "Bob"));
-        Thread t3 = new Thread(new PurchaseTask(stockManager, book, 5, "Charlie"));
-        Thread t4 = new Thread(new PurchaseTask(stockManager, book, 2, "Diana"));
-
-        // 5️⃣ Lancement des threads
         t1.start();
         t2.start();
         t3.start();
         t4.start();
 
-        // 6️⃣ Attendre la fin de tous les threads
         try {
             t1.join();
             t2.join();
@@ -43,17 +77,31 @@ public class Main {
             e.printStackTrace();
         }
 
-        // 7️⃣ Afficher le stock final après achats
-        System.out.println("Stock final : " + getStock(book.getIsbn()));
+        System.out.println("Stock après threads : " + getStock(threadedBook.getIsbn()));
+
+        // ==========================
+        // 3️⃣ Afficher la liste finale des livres
+        // ==========================
+        System.out.println("\n===== Liste finale des livres =====");
+        books = BookService.getAllBooks();
+        for (Map<String, Object> book : books) {
+            System.out.println(
+                    "ISBN: " + book.get("isbn") +
+                    " | Titre: " + book.get("title") +
+                    " | Auteur: " + book.get("author") +
+                    " | Prix: " + book.get("price") +
+                    " | Stock: " + book.get("stock")
+            );
+        }
     }
 
     // Méthode utilitaire pour récupérer le stock directement depuis la DB
     private static int getStock(String isbn) {
         int stock = -1;
-        try (Connection conn = config.DBConnection.getConnection()) {
-            PreparedStatement ps = conn.prepareStatement("SELECT stock FROM books WHERE isbn = ?");
+        try (java.sql.Connection conn = config.DBConnection.getConnection()) {
+            java.sql.PreparedStatement ps = conn.prepareStatement("SELECT stock FROM books WHERE isbn = ?");
             ps.setString(1, isbn);
-            ResultSet rs = ps.executeQuery();
+            java.sql.ResultSet rs = ps.executeQuery();
             if (rs.next()) {
                 stock = rs.getInt("stock");
             }
