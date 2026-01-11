@@ -43,4 +43,57 @@ public class main {
                 )
         );
     }
+
+            /* ================= Awfa's Main ================= */
+
+        /* ================= BOOK STORE STATISTICS ================= */
+
+        System.out.println("\n====================================");
+        System.out.println("        BOOK STORE STATISTICS        ");
+        System.out.println("====================================");
+
+        /* ---------- BOOK STATISTICS ---------- */
+
+        System.out.println("\n[ BOOKS ]");
+
+        System.out.println("• Total books        : "
+                + statisticsService.countBooks(books));
+
+        statisticsService.averageBookPrice(books)
+                .ifPresent(avg ->
+                        System.out.println("• Average price      : " + avg)
+                );
+
+        Book expensiveBook = statisticsService.mostExpensiveBook(books);
+        if (expensiveBook != null) {
+            System.out.println("• Most expensive     : "
+                    + expensiveBook.getTitle());
+        }
+
+        System.out.println("• Total stock        : "
+                + statisticsService.totalStock(books));
+
+        /* ---------- ORDER / SALES STATISTICS ---------- */
+
+        try (Connection cn = DBConnection.getConnection()) {
+
+            System.out.println("\n[ ORDERS & SALES ]");
+
+            System.out.println("• Orders count       : "
+                    + statisticsService.countOrdersFromDB(cn));
+
+            System.out.println("• Order items count  : "
+                    + statisticsService.countOrderItemsFromDB(cn));
+
+            System.out.println("• Books sold         : "
+                    + statisticsService.totalBooksSoldFromDB(cn));
+
+            System.out.println("• Total sales        : "
+                    + statisticsService.totalSalesFromDB(cn));
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        System.out.println("====================================\n");
 }
